@@ -1,0 +1,263 @@
+{
+  "name": "DataBot - Chat Query",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "databot-chat"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$credentials.openaiApiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"text-embedding-ada-002\", \"input\": \"{{ $json.question }}\"}",
+        "options": {}
+      },
+      "id": "query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": "openai"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer embedding de la query\nconst items = [];\n\nfor (const item of $input.all()) {\n  const embedding = item.json.data?.[0]?.embedding;\n  if (embedding) {\n    items.push({\n      json: {\n        ...item.json,\n        query_embedding: embedding\n      }\n    });\n  }\n}\n\nreturn items;"
+      },
+      "id": "extract-query-embedding",
+      "name": "Extract Query Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Buscar vectores similares usando similitud coseno\n// En producción, usar función RPC de Supabase\nconst queryEmbedding = $input.first().json.query_embedding;\n\nreturn $input.all().map(item => ({\n  json: {\n    ...item.json,\n    // Simulated search results - en producción usar RPC\n    question: item.json.question,\n    user_id: item.json.user_id,\n    session_id: item.json.session_id || crypto.randomUUID()\n  }\n}));"
+      },
+      "id": "search-vectors",
+      "name": "Search Similar Vectors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "{{$credentials.claudeApiKey}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"claude-sonnet-4-20250514\", \"max_tokens\": 1024, \"system\": \"Eres un asistente técnico especializado en fotocopiadoras y máquinas de oficina. Respondes SIEMPRE en español, de manera clara y concisa. Cuando respondas: 1) Usa la información del contexto del manual cuando esté disponible. 2) Si no hay información clara en el contexto, indica que no tienes esa información específica del manual. 3) Incluye el número de página o sección cuando sea relevante. 4) Da pasos claros para resolver el problema si es una falla. 5) Si el manual está en otro idioma, traduce y resume la información relevante al español.\", \"messages\": [{\"role\": \"user\", \"content\": \"Contexto del manual:\\n{{ $json.context }}\\n\\nPregunta del técnico:\\n{{ $json.question }}\"}]}",
+        "options": {}
+      },
+      "id": "claude-api",
+      "name": "Call Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300],
+      "credentials": {
+        "httpHeaderAuth": "anthropic"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer respuesta de Claude\nconst items = [];\n\nfor (const item of $input.all()) {\n  const content = item.json.content;\n  if (content && Array.isArray(content)) {\n    const text = content.find(c => c.type === 'text')?.text || '';\n    items.push({\n      json: {\n        ...item.json,\n        answer: text\n      }\n    });\n  }\n}\n\nreturn items;"
+      },
+      "id": "extract-answer",
+      "name": "Extract Claude Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{$env.SUPABASE_URL}}/rest/v1/mensajes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"conversacion_id\": \"{{$json.session_id}}\", \"rol\": \"assistant\", \"contenido\": \"{{$json.answer}}\"}",
+        "options": {}
+      },
+      "id": "save-response",
+      "name": "Save Response to Historial",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "credentials": {
+        "httpHeaderAuth": "supabase"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Responder a la web app\nreturn $input.all().map(item => ({\n  json: {\n    answer: item.json.answer,\n    session_id: item.json.session_id,\n    timestamp: new Date().toISOString()\n  }\n}));"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{{ $json }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Web App",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Chat Webhook": {
+      "main": [[
+        {
+          "node": "Generate Query Embedding",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Generate Query Embedding": {
+      "main": [[
+        {
+          "node": "Extract Query Embedding",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Extract Query Embedding": {
+      "main": [[
+        {
+          "node": "Search Similar Vectors",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Search Similar Vectors": {
+      "main": [[
+        {
+          "node": "Call Claude API",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Call Claude API": {
+      "main": [[
+        {
+          "node": "Extract Claude Answer",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Extract Claude Answer": {
+      "main": [[
+        {
+          "node": "Save Response to Historial",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Save Response to Historial": {
+      "main": [[
+        {
+          "node": "Format Response",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Format Response": {
+      "main": [[
+        {
+          "node": "Respond to Web App",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "trigger": "webhook-trigger",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

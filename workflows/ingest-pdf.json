@@ -1,0 +1,243 @@
+{
+  "name": "DataBot - Ingest PDF",
+  "nodes": [
+    {
+      "parameters": {
+        "folderId": "",
+        "fileId": "",
+        "options": {
+          "watchFor": "fileCreated"
+        }
+      },
+      "id": "google-drive-trigger",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "databot-ingest"
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = $input.all();\nconst pdfItems = items.filter(item => item.json.name?.endsWith('.pdf'));\nreturn pdfItems.map(item => ({ json: { ...item.json, binary: item.binary } }));"
+      },
+      "id": "filter-pdf",
+      "name": "Filter PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{ $json.fileId }}",
+        "options": {}
+      },
+      "id": "download-file",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer texto del PDF (usando pdf-parse o similar)\n// Este es un ejemplo simplificado\nconst items = [];\n\nfor (const item of $input.all()) {\n  const pdfData = item.binary?.data;\n  if (pdfData) {\n    // En producción, usa pdf-parse o servicio externo\n    // Aquí asumimos que el texto ya está disponible\n    const text = item.json.text || item.json.name;\n    \n    // Fragmentar en chunks de 500 caracteres\n    const chunkSize = 500;\n    const overlap = 50;\n    \n    for (let i = 0; i < text.length; i += chunkSize - overlap) {\n      const chunk = text.slice(i, i + chunkSize);\n      if (chunk.trim().length > 50) {\n        items.push({\n          json: {\n            text: chunk,\n            page: Math.floor(i / chunkSize) + 1,\n            index: items.length\n          }\n        });\n      }\n      if (i + chunkSize > text.length) break;\n    }\n  }\n}\n\nreturn items;"
+      },
+      "id": "split-chunks",
+      "name": "Split into Chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$credentials.openaiApiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"text-embedding-ada-002\", \"input\": \"{{ $json.text }}\"}",
+        "options": {}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300],
+      "credentials": {
+        "httpHeaderAuth": "openai"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer embedding de respuesta de OpenAI\nconst items = [];\n\nfor (const item of $input.all()) {\n  const embedding = item.json.data?.[0]?.embedding;\n  if (embedding) {\n    items.push({\n      json: {\n        ...item.json,\n        embedding: embedding\n      }\n    });\n  }\n}\n\nreturn items;"
+      },
+      "id": "extract-embedding",
+      "name": "Extract Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{$env.SUPABASE_URL}}/rest/v1/vectores",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"manual_id\": \"{{$json.manual_id}}\", \"chunk_text\": \"{{$json.text}}\", \"embedding\": {{$json.embedding}}, \"page_number\": {{$json.page}}}",
+        "options": {}
+      },
+      "id": "insert-vectors",
+      "name": "Insert Vectors to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "credentials": {
+        "httpHeaderAuth": "supabase"
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "{{$env.SUPABASE_URL}}/rest/v1/manuales?drive_file_id=eq.{{$json.fileId}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "{\"procesado\": true, \"total_chunks\": {{$json.totalChunks}}}",
+        "options": {}
+      },
+      "id": "update-status",
+      "name": "Update Manual Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1650, 300],
+      "credentials": {
+        "httpHeaderAuth": "supabase"
+      }
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [[
+        {
+          "node": "Filter PDF",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Filter PDF": {
+      "main": [[
+        {
+          "node": "Download PDF",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Download PDF": {
+      "main": [[
+        {
+          "node": "Split into Chunks",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Split into Chunks": {
+      "main": [[
+        {
+          "node": "Generate Embedding",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Generate Embedding": {
+      "main": [[
+        {
+          "node": "Extract Embedding",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Extract Embedding": {
+      "main": [[
+        {
+          "node": "Insert Vectors to Supabase",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Insert Vectors to Supabase": {
+      "main": [[
+        {
+          "node": "Update Manual Status",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "trigger": "google-drive-trigger",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
