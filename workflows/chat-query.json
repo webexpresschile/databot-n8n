@@ -14,7 +14,10 @@
       "name": "Chat Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "webhookId": "databot-chat"
     },
     {
@@ -28,7 +31,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer {{$credentials.openaiApiKey}}"
+              "value": "Bearer {{$env.OPENAI_API_KEY}}"
             },
             {
               "name": "Content-Type",
@@ -44,10 +47,10 @@
       "name": "Generate Query Embedding",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [450, 300],
-      "credentials": {
-        "httpHeaderAuth": "openai"
-      }
+      "position": [
+        450,
+        300
+      ]
     },
     {
       "parameters": {
@@ -57,17 +60,23 @@
       "name": "Extract Query Embedding",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [650, 300]
+      "position": [
+        650,
+        300
+      ]
     },
     {
       "parameters": {
-        "functionCode": "// Buscar vectores similares usando similitud coseno\n// En producción, usar función RPC de Supabase\nconst queryEmbedding = $input.first().json.query_embedding;\n\nreturn $input.all().map(item => ({\n  json: {\n    ...item.json,\n    // Simulated search results - en producción usar RPC\n    question: item.json.question,\n    user_id: item.json.user_id,\n    session_id: item.json.session_id || crypto.randomUUID()\n  }\n}));"
+        "functionCode": "// Buscar vectores similares usando similitud coseno\n// En producci\u00f3n, usar funci\u00f3n RPC de Supabase\nconst queryEmbedding = $input.first().json.query_embedding;\n\nreturn $input.all().map(item => ({\n  json: {\n    ...item.json,\n    // Simulated search results - en producci\u00f3n usar RPC\n    question: item.json.question,\n    user_id: item.json.user_id,\n    session_id: item.json.session_id || crypto.randomUUID()\n  }\n}));"
       },
       "id": "search-vectors",
       "name": "Search Similar Vectors",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [850, 300]
+      "position": [
+        850,
+        300
+      ]
     },
     {
       "parameters": {
@@ -80,7 +89,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "{{$credentials.claudeApiKey}}"
+              "value": "{{$env.ANTHROPIC_API_KEY}}"
             },
             {
               "name": "anthropic-version",
@@ -93,17 +102,17 @@
           ]
         },
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"claude-sonnet-4-20250514\", \"max_tokens\": 1024, \"system\": \"Eres un asistente técnico especializado en fotocopiadoras y máquinas de oficina. Respondes SIEMPRE en español, de manera clara y concisa. Cuando respondas: 1) Usa la información del contexto del manual cuando esté disponible. 2) Si no hay información clara en el contexto, indica que no tienes esa información específica del manual. 3) Incluye el número de página o sección cuando sea relevante. 4) Da pasos claros para resolver el problema si es una falla. 5) Si el manual está en otro idioma, traduce y resume la información relevante al español.\", \"messages\": [{\"role\": \"user\", \"content\": \"Contexto del manual:\\n{{ $json.context }}\\n\\nPregunta del técnico:\\n{{ $json.question }}\"}]}",
+        "jsonBody": "{\"model\": \"claude-sonnet-4-20250514\", \"max_tokens\": 1024, \"system\": \"Eres un asistente t\u00e9cnico especializado en fotocopiadoras y m\u00e1quinas de oficina. Respondes SIEMPRE en espa\u00f1ol, de manera clara y concisa. Cuando respondas: 1) Usa la informaci\u00f3n del contexto del manual cuando est\u00e9 disponible. 2) Si no hay informaci\u00f3n clara en el contexto, indica que no tienes esa informaci\u00f3n espec\u00edfica del manual. 3) Incluye el n\u00famero de p\u00e1gina o secci\u00f3n cuando sea relevante. 4) Da pasos claros para resolver el problema si es una falla. 5) Si el manual est\u00e1 en otro idioma, traduce y resume la informaci\u00f3n relevante al espa\u00f1ol.\", \"messages\": [{\"role\": \"user\", \"content\": \"Contexto del manual:\\n{{ $json.context }}\\n\\nPregunta del t\u00e9cnico:\\n{{ $json.question }}\"}]}",
         "options": {}
       },
       "id": "claude-api",
       "name": "Call Claude API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1050, 300],
-      "credentials": {
-        "httpHeaderAuth": "anthropic"
-      }
+      "position": [
+        1050,
+        300
+      ]
     },
     {
       "parameters": {
@@ -113,7 +122,10 @@
       "name": "Extract Claude Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [1250, 300]
+      "position": [
+        1250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -150,10 +162,10 @@
       "name": "Save Response to Historial",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1450, 300],
-      "credentials": {
-        "httpHeaderAuth": "supabase"
-      }
+      "position": [
+        1450,
+        300
+      ]
     },
     {
       "parameters": {
@@ -163,7 +175,10 @@
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [1650, 300]
+      "position": [
+        1650,
+        300
+      ]
     },
     {
       "parameters": {
@@ -175,81 +190,100 @@
       "name": "Respond to Web App",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1850, 300]
+      "position": [
+        1850,
+        300
+      ]
     }
   ],
   "connections": {
     "Chat Webhook": {
-      "main": [[
-        {
-          "node": "Generate Query Embedding",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generate Query Embedding": {
-      "main": [[
-        {
-          "node": "Extract Query Embedding",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Extract Query Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Query Embedding": {
-      "main": [[
-        {
-          "node": "Search Similar Vectors",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Search Similar Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Search Similar Vectors": {
-      "main": [[
-        {
-          "node": "Call Claude API",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Call Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call Claude API": {
-      "main": [[
-        {
-          "node": "Extract Claude Answer",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Extract Claude Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Claude Answer": {
-      "main": [[
-        {
-          "node": "Save Response to Historial",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Save Response to Historial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Save Response to Historial": {
-      "main": [[
-        {
-          "node": "Format Response",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Response": {
-      "main": [[
-        {
-          "node": "Respond to Web App",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Respond to Web App",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

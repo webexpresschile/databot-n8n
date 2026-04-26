@@ -13,7 +13,10 @@
       "name": "Google Drive Trigger",
       "type": "n8n-nodes-base.googleDriveTrigger",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "webhookId": "databot-ingest"
     },
     {
@@ -24,7 +27,10 @@
       "name": "Filter PDF",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [450, 300]
+      "position": [
+        450,
+        300
+      ]
     },
     {
       "parameters": {
@@ -36,17 +42,23 @@
       "name": "Download PDF",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 2,
-      "position": [650, 300]
+      "position": [
+        650,
+        300
+      ]
     },
     {
       "parameters": {
-        "functionCode": "// Extraer texto del PDF (usando pdf-parse o similar)\n// Este es un ejemplo simplificado\nconst items = [];\n\nfor (const item of $input.all()) {\n  const pdfData = item.binary?.data;\n  if (pdfData) {\n    // En producción, usa pdf-parse o servicio externo\n    // Aquí asumimos que el texto ya está disponible\n    const text = item.json.text || item.json.name;\n    \n    // Fragmentar en chunks de 500 caracteres\n    const chunkSize = 500;\n    const overlap = 50;\n    \n    for (let i = 0; i < text.length; i += chunkSize - overlap) {\n      const chunk = text.slice(i, i + chunkSize);\n      if (chunk.trim().length > 50) {\n        items.push({\n          json: {\n            text: chunk,\n            page: Math.floor(i / chunkSize) + 1,\n            index: items.length\n          }\n        });\n      }\n      if (i + chunkSize > text.length) break;\n    }\n  }\n}\n\nreturn items;"
+        "functionCode": "// Extraer texto del PDF (usando pdf-parse o similar)\n// Este es un ejemplo simplificado\nconst items = [];\n\nfor (const item of $input.all()) {\n  const pdfData = item.binary?.data;\n  if (pdfData) {\n    // En producci\u00f3n, usa pdf-parse o servicio externo\n    // Aqu\u00ed asumimos que el texto ya est\u00e1 disponible\n    const text = item.json.text || item.json.name;\n    \n    // Fragmentar en chunks de 500 caracteres\n    const chunkSize = 500;\n    const overlap = 50;\n    \n    for (let i = 0; i < text.length; i += chunkSize - overlap) {\n      const chunk = text.slice(i, i + chunkSize);\n      if (chunk.trim().length > 50) {\n        items.push({\n          json: {\n            text: chunk,\n            page: Math.floor(i / chunkSize) + 1,\n            index: items.length\n          }\n        });\n      }\n      if (i + chunkSize > text.length) break;\n    }\n  }\n}\n\nreturn items;"
       },
       "id": "split-chunks",
       "name": "Split into Chunks",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [850, 300]
+      "position": [
+        850,
+        300
+      ]
     },
     {
       "parameters": {
@@ -59,7 +71,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer {{$credentials.openaiApiKey}}"
+              "value": "Bearer {{$env.OPENAI_API_KEY}}"
             },
             {
               "name": "Content-Type",
@@ -75,10 +87,10 @@
       "name": "Generate Embedding",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1050, 300],
-      "credentials": {
-        "httpHeaderAuth": "openai"
-      }
+      "position": [
+        1050,
+        300
+      ]
     },
     {
       "parameters": {
@@ -88,7 +100,10 @@
       "name": "Extract Embedding",
       "type": "n8n-nodes-base.code",
       "typeVersion": 3,
-      "position": [1250, 300]
+      "position": [
+        1250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -125,10 +140,10 @@
       "name": "Insert Vectors to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1450, 300],
-      "credentials": {
-        "httpHeaderAuth": "supabase"
-      }
+      "position": [
+        1450,
+        300
+      ]
     },
     {
       "parameters": {
@@ -161,75 +176,89 @@
       "name": "Update Manual Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1650, 300],
-      "credentials": {
-        "httpHeaderAuth": "supabase"
-      }
+      "position": [
+        1650,
+        300
+      ]
     }
   ],
   "connections": {
     "Google Drive Trigger": {
-      "main": [[
-        {
-          "node": "Filter PDF",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Filter PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Filter PDF": {
-      "main": [[
-        {
-          "node": "Download PDF",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Download PDF": {
-      "main": [[
-        {
-          "node": "Split into Chunks",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Split into Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split into Chunks": {
-      "main": [[
-        {
-          "node": "Generate Embedding",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generate Embedding": {
-      "main": [[
-        {
-          "node": "Extract Embedding",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Extract Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Embedding": {
-      "main": [[
-        {
-          "node": "Insert Vectors to Supabase",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Insert Vectors to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Insert Vectors to Supabase": {
-      "main": [[
-        {
-          "node": "Update Manual Status",
-          "type": "main",
-          "index": 0
-        }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Update Manual Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
